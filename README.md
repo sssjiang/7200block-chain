@@ -1,2 +1,2 @@
 # 7200block-chain
-5 people
+Built by 5 handsome students
