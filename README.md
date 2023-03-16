@@ -1,2 +1,5 @@
 # 7200block-chain
-Built by 5 handsome students
+## How to run
+python blockchain.py
+## Contributor
+5 handsome students
