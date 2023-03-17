@@ -1,8 +1,10 @@
 import json
-import hashlib as hl
+import hashlib as _hl # 加单下划线，表示这个变量仅供内部使用（相当于私有变量，但不完全私有）
+
+# __all__ = ['hash_string_256', 'hash_block']  # __all__ 变量存储了可以被 export 出去的变量，当从外部访问的时候，只能访问这两个被变量
 
 def hash_string_256(string):
-    return hl.sha256(string).hexdigest()
+    return _hl.sha256(string).hexdigest()
 
 
 # 使用 SHA256 对区块进行 hash 计算

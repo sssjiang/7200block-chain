@@ -1,4 +1,4 @@
-from hash_util import hash_block, hash_string_256
+from utility.hash_util import hash_block, hash_string_256
 
 class Verification:
     # 工作量证明 Proof-of-work
