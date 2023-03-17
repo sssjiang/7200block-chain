@@ -1,5 +1,5 @@
 # 7200block-chain
 ## How to run
-python blockchain.py
+python node.py
 ## Contributors
 5 handsome students
