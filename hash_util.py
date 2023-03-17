@@ -13,7 +13,7 @@ def hash_block(block):
         block: The block that should be hashed 
     """
     # 加 copy 是因为 hashable_block 要被 json.dumps 用来转换为 String
-    # 为了不然原数据被修改，使用 copy
+    # 为了不让原数据被修改，使用 copy
     hashable_block = block.__dict__.copy()
     hashable_block['transactions'] = [tx.to_ordered_dict() for tx in hashable_block['transactions']]
 
