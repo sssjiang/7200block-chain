@@ -2,10 +2,11 @@ from functools import reduce
 import json
 # import pickle
 
-from hash_util import hash_block
+from utility.hash_util import hash_block
+from utility.verification import Verification
 from block import Block
 from transaction import Transaction
-from verification import Verification
+from wallet import Wallet
 
 MINING_REWARD = 10.0  # 挖矿奖励
 
@@ -51,12 +52,7 @@ class Blockchain:
                 blockchain = json.loads(file_content[0][:-1]) # 加[:-1]是为了去掉结尾的 \n
                 updated_blockchain = []
                 for block in blockchain:
-                    converted_tx = [Transaction(tx['sender'], tx['recipient'], tx['amount']) for tx in block['transactions']]
-                    # converted_tx = [OrderedDict([ # 这个步骤很重要，因为所有的 transactions 里面的字典数据都是使用 OrderedDict 生成的，和普通的 dict 不一样，不加这一步的话会导致验证区块失败
-                    #                     ('sender', tx['sender']),
-                    #                     ('recipient', tx['recipient']),
-                    #                     ('amount', tx['amount'])
-                    #                 ]) for tx in block['transactions']]
+                    converted_tx = [Transaction(tx['sender'], tx['recipient'], tx['signature'], tx['amount']) for tx in block['transactions']]
                     updated_block = Block(
                         block['index'],
                         block['previous_hash'],
@@ -74,7 +70,7 @@ class Blockchain:
                 open_transactions = json.loads(file_content[1])
                 updated_open_transactions = []
                 for tx in open_transactions:
-                    updated_transaction = Transaction(tx['sender'], tx['recipient'], tx['amount'])
+                    updated_transaction = Transaction(tx['sender'], tx['recipient'], tx['signature'], tx['amount'])
                     updated_open_transactions.append(updated_transaction)
                 self.__open_transactions = updated_open_transactions
         except (IOError, IndexError): # 处理文件为空的问题
@@ -148,14 +144,18 @@ class Blockchain:
         return self.__chain[-1]
 
     # 新增交易
-    def add_transaction(self, recipient, sender, amount=1.0):
+    def add_transaction(self, recipient, sender, signature, amount=1.0):
         """
         Arguments:
             :sender: The sender of the coins.
             :recipient: The recipient of the coins.
             :amont: The amount of coins sent with the transaction (default=1.0)
         """
-        transaction = Transaction(sender, recipient, amount)
+        if self.hosting_node == None:
+            return
+        transaction = Transaction(sender, recipient, signature, amount)
+        if not Wallet.verify_signature(transaction): # 验证签名
+            return False
         if Verification.verify_transaction(transaction, self.get_balance):
             self.__open_transactions.append(transaction)
             self.save_data()
@@ -165,15 +165,26 @@ class Blockchain:
     # 挖矿
     def mine_block(self):
         """Create a new block and add open transactions to it."""
+        if self.hosting_node == None:
+            return
+
         last_block = self.__chain[-1]
         hashed_block = hash_block(last_block)  # 计算上一个块的 hash 值
         proof = self.proof_of_work() # PoW只针对 open_transactions 里的交易，不包括系统奖励的交易
 
-        reward_transaction = Transaction('MINING', self.hosting_node, MINING_REWARD) # 系统奖励
+        reward_transaction = Transaction('MINING', self.hosting_node, '', MINING_REWARD) # 系统奖励
 
         copied_transactions = self.__open_transactions[:]  # 复制交易池记录（未加入奖励交易之前的）（深拷贝！）
         copied_transactions.append(reward_transaction) # 将系统奖励的coins加进去
-        block = Block(len(self.__chain), hashed_block, copied_transactions, proof) # 创建新块
+        block = Block(  # 创建新块
+            len(self.__chain),
+            hashed_block,
+            copied_transactions, proof
+        )
+
+        for tx in block.transactions: # 验证签名
+            if not Wallet.verify_signature(tx):
+                return False
 
         # 加入新块
         self.__chain.append(block)
