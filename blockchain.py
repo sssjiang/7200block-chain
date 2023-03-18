@@ -154,8 +154,7 @@ class Blockchain:
         if self.hosting_node == None:
             return
         transaction = Transaction(sender, recipient, signature, amount)
-        if not Wallet.verify_signature(transaction): # 验证签名
-            return False
+
         if Verification.verify_transaction(transaction, self.get_balance):
             self.__open_transactions.append(transaction)
             self.save_data()
@@ -175,16 +174,16 @@ class Blockchain:
         reward_transaction = Transaction('MINING', self.hosting_node, '', MINING_REWARD) # 系统奖励
 
         copied_transactions = self.__open_transactions[:]  # 复制交易池记录（未加入奖励交易之前的）（深拷贝！）
+        for tx in copied_transactions: # 验证签名
+            if not Wallet.verify_transaction(tx):
+                return False
+        
         copied_transactions.append(reward_transaction) # 将系统奖励的coins加进去
         block = Block(  # 创建新块
             len(self.__chain),
             hashed_block,
             copied_transactions, proof
         )
-
-        for tx in block.transactions: # 验证签名
-            if not Wallet.verify_signature(tx):
-                return False
 
         # 加入新块
         self.__chain.append(block)
