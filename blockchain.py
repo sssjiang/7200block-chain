@@ -115,6 +115,9 @@ class Blockchain:
 
     # 计算用户的余额
     def get_balance(self):
+        if self.hosting_node == None:
+            return None
+
         participant = self.hosting_node
 
         # 获得过往交易中用户发送出去的所有金额记录
@@ -154,8 +157,7 @@ class Blockchain:
         if self.hosting_node == None:
             return
         transaction = Transaction(sender, recipient, signature, amount)
-        if not Wallet.verify_signature(transaction): # 验证签名
-            return False
+
         if Verification.verify_transaction(transaction, self.get_balance):
             self.__open_transactions.append(transaction)
             self.save_data()
@@ -166,7 +168,7 @@ class Blockchain:
     def mine_block(self):
         """Create a new block and add open transactions to it."""
         if self.hosting_node == None:
-            return
+            return None
 
         last_block = self.__chain[-1]
         hashed_block = hash_block(last_block)  # 计算上一个块的 hash 值
@@ -175,6 +177,10 @@ class Blockchain:
         reward_transaction = Transaction('MINING', self.hosting_node, '', MINING_REWARD) # 系统奖励
 
         copied_transactions = self.__open_transactions[:]  # 复制交易池记录（未加入奖励交易之前的）（深拷贝！）
+        for tx in copied_transactions: # 验证签名
+            if not Wallet.verify_transaction(tx):
+                return None
+        
         copied_transactions.append(reward_transaction) # 将系统奖励的coins加进去
         block = Block(  # 创建新块
             len(self.__chain),
@@ -182,14 +188,10 @@ class Blockchain:
             copied_transactions, proof
         )
 
-        for tx in block.transactions: # 验证签名
-            if not Wallet.verify_signature(tx):
-                return False
-
         # 加入新块
         self.__chain.append(block)
         self.__open_transactions = []
         self.save_data()
-        return True
+        return block
 
 

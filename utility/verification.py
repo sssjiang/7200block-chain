@@ -1,4 +1,5 @@
 from utility.hash_util import hash_block, hash_string_256
+from wallet import Wallet
 
 class Verification:
     # 工作量证明 Proof-of-work
@@ -31,13 +32,16 @@ class Verification:
 
     # 校验交易
     @staticmethod
-    def verify_transaction(transaction, get_balance):
-        sender_balance = get_balance()
-        return sender_balance >= transaction.amount  # 检验发送方的余额是否多于本次交易的金额
+    def verify_transaction(transaction, get_balance, check_funds=True):
+        if check_funds:
+            sender_balance = get_balance()
+            return sender_balance >= transaction.amount and Wallet.verify_transaction(transaction)  # 检验发送方的余额是否多于本次交易的金额
+        else:
+            return Wallet.verify_transaction(transaction)
 
     # 校验交易列表
     @classmethod
     def verify_transactions(cls, open_transactions, get_balance):
         # all 的作用就是检验列表中的值是否都为 True
-        return all([cls.verify_transaction(tx, get_balance) for tx in open_transactions])
+        return all([cls.verify_transaction(tx, get_balance, False) for tx in open_transactions])
 
