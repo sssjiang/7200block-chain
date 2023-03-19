@@ -17,10 +17,5 @@ In the project, package `pycrypto` is needed. When installing it, install `pycry
 ```
 pip install pycryptodome
 ```
-## Pycrypto packages
-Before running the program, install the `pycrypto` library. Type the command below to install. It is a python library allowing you to use variety of encryption algorithms.
-```
-pip install pycryptodome
-```
 ## Contributors
 5 handsome students
