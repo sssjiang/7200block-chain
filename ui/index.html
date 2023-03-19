@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+  <!-- <link rel="stylesheet" href="/ui/element.css"> -->
+  <link rel="stylesheet" href="/ui/index.css">
+  <title>COMP7200 Blockchain</title>
+</head>
+<body>
+  <el-container class="app" id="app">
+    <el-header class="header">COMP7200 Blockchian - BUCoins</el-header>
+    <div class="content">
+      <el-alert
+        v-if="error"
+        class="el-alert"
+        :closable="false"
+        type="error"
+        :title="error"></el-alert>
+
+      <el-alert
+        v-if="success"
+        class="el-alert"
+        :closable="false"
+        type="success"
+        :title="success"></el-alert>
+  
+      <div class="wallet" v-loading="walletLoading">
+        <el-row class="actions">
+          <el-button @click="onCreateWallet" type="primary">Create new Wallet</el-button>
+          <el-button @click="onLoadWallet" type="primary">Load Wallet</el-button>
+        </el-row>
+        <div class="balance">Balance: {{balance.toFixed(5)}}</div>
+      </div>
+
+      <el-divider class="divider"></el-divider>
+
+      <!-- 新增交易 -->
+      <div class="add_transaction" v-if="txOpitons" v-loading="txLoading"> 
+        <el-form :rules="rules" ref="outgoingTx" :model="outgoingTx">
+          <el-form-item label="Recipient Key" prop="recipient">
+            <el-input placeholder="Enter key" v-model="outgoingTx.recipient"></el-input>
+          </el-form-item>
+          <el-form-item label="Amount of Coins" prop="amount">
+            <el-input type="number" :min="0" placeholder="Enter amount" v-model="outgoingTx.amount"></el-input>
+            <div style="color:#767c83">Fractions are possible (e.g. 5.67)</div>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="onSendTx('outgoingTx')">Send</el-button>
+          </el-form-item>
+        </el-form>
+      </div>
+
+      <el-alert
+        class="el-alert"
+        :closable="false"
+        type="success"
+        title="Create a Wallet to start your coin trip !"></el-alert>
+      
+      <el-divider class="divider"></el-divider>
+      
+      <el-tabs type="border-card" v-model="view" @tab-click="tabClick">
+        <el-tab-pane v-loading="dataLoading" label="Blockchain" name="chain">
+          <div class="blockchain">
+            <el-row>
+              <el-button @click="onLoadData" type="primary">Load Blockchain</el-button>
+              <el-button @click="onMine" type="success">Mine BUCoins</el-button>
+            </el-row>
+            <el-collapse v-model="activeBlockName">
+              <div class="blocks" :key="block.index" v-for="block in blockchain">
+                <!-- <div class="name">Block #{{block.index}}</div> -->
+                <el-collapse-item :title="'Block #' + block.index" :name="block.index">
+                  <div class="previous-hash"><span style="font-weight:bold">Previous Hash: </span>{{block.previous_hash || "0000"}}</div>
+                  <div class="transactions" v-for="(tx, idx) in block.transactions" :key="idx + 'id'">
+                    <div class="tx">
+                      <div><span style="font-weight:bold">Sender: </span>{{tx.sender}}</div>
+                      <div><span style="font-weight:bold">Recipient: </span>{{tx.recipient}}</div>
+                      <div><span style="font-weight:bold">Amount: </span>{{tx.amount}}</div>
+                    </div>
+                  </div>
+                </el-collape-item>
+              </div>
+            </el-collapse>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="Open Transactions" name="OpenTx">
+          <div class="open-transactions">
+            <el-button @click="onLoadData" type="primary">Load Transactions</el-button>
+            <el-collapse v-model="activeTxName">
+              <div class="openTx" :key="tx.index" v-for="(tx, index) in openTransactions">
+                <el-collapse-item :title="'Transactions #' + index" :name="tx.index">
+                  <div class="tx">
+                    <div><span style="font-weight:bold">Sender: </span>{{tx.sender}}</div>
+                    <div><span style="font-weight:bold">Recipient: </span>{{tx.recipient}}</div>
+                    <div><span style="font-weight:bold">Amount: </span>{{tx.amount}}</div>
+                  </div>
+                </el-collapse-item>
+              </div>
+            </el-collapse>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+    </div>
+  </el-container>
+  <script src="/ui/vue.js"></script>
+  <script src="/ui/elementui.js"></script>
+  <!-- <script src="/ui/axios.js"></script> -->
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <script>
+    new Vue({
+      el: '#app',
+      data: {
+        course: 'COMP7200 Blockchain',
+        rules: {
+          recipient: [
+            { required: true, message: 'Please input recipient key' }
+          ]
+        },
+        activeBlockName: '',
+        activeTxName: '',
+        blockchain: [],
+        openTransactions: [],
+        wallet: null,
+        view: 'chain',
+        walletLoading: false,
+        txLoading: false,
+        dataLoading: false,
+        showElement: null,
+        error: null,
+        success: null,
+        balance: 0,
+        txOpitons: false,
+        outgoingTx: {
+          recipient: null,
+          amount: 0.0
+        },
+      },
+      computed: {
+        loadedData: function () {
+          if (this.view === 'chain') {
+            return this.blockchain
+          } else {
+            return this.openTransactions
+          }
+        }
+      },
+      methods: {
+        tabClick: function(tab, event) {
+          // console.info(tab)
+          // this.data.view = tab.name
+        },
+        // 创建钱包
+        onCreateWallet: function () {
+          const vm = this
+          this.walletLoading = true
+          axios.post('/wallet')
+            .then(function (response) {
+              // console.info(response)
+              vm.error = null
+              vm.success = 'Created Wallet! Public Key: ' + response.data.public_key + ', \n Private Key: ' + response.data.private_key
+              vm.wallet = {
+                public_key: response.data.public_key,
+                private_key: response.data.private_key
+              }
+              vm.balance = response.data.funds
+              vm.txOpitons = true
+              vm.walletLoading = false
+            })
+            .catch(function (error) {
+              vm.success = null
+              vm.error = error.response.data.message
+              vm.txOpitons = false
+              vm.walletLoading = false
+            })
+        },
+        // 加载钱包
+        onLoadWallet: function () {
+          const vm = this
+          this.walletLoading = true
+          axios.get('/wallet')
+            .then(function (response) {
+              vm.error = null
+              vm.success = 'Loaded Wallet! Public Key: ' + response.data.public_key + ', \n Private Key: ' + response.data.private_key
+              vm.wallet = {
+                public_key: response.data.public_key,
+                private_key: response.data.private_key
+              }
+              vm.balance = response.data.funds
+              vm.txOpitons = true
+              vm.walletLoading = false
+            })
+            .catch(function (error) {
+              vm.success = null
+              vm.error = error.response.data.message
+              vm.wallet = null
+              vm.txOpitons = false
+              vm.walletLoading = false
+            })
+        },
+        // 加载数据（区块 or 交易）
+        onLoadData: function () {
+          const vm = this
+          vm.dataLoading = true
+          if (this.view === 'chain') {
+            axios.get('/chain')
+              .then(function (response) {
+                vm.dataLoading = false
+                vm.blockchain = response.data.reverse()
+              })
+              .catch(function (error) {
+                vm.dataLoading = false
+                vm.error = 'Something went wrong.'
+              })
+          } else {
+            axios.get('/transactions')
+              .then(function (response) {
+                vm.dataLoading = false
+                vm.openTransactions = response.data
+              })
+              .catch(function (error) {
+                vm.dataLoading = false
+                vm.error = 'Something went wrong.'
+              })
+          }
+        },
+        // 新增交易
+        onSendTx: function (formName) {
+          const vm = this
+          this.$refs[formName].validate((valid) => {
+            if (valid) {
+              vm.txLoading = true
+              axios.post('/transaction', {
+                recipient: vm.outgoingTx.recipient,
+                amount: vm.outgoingTx.amount
+              })
+                .then(function(response) {
+                  vm.error = null
+                  vm.success = response.data.message
+                  console.log(response.data)
+                  vm.balance = response.data.funds
+                  vm.txLoading = false
+                  vm.outgoingTx = {
+                    recipient: null,
+                    amount: 0.0
+                  }
+                })
+                .catch(function(error) {
+                  console.error(error)
+                  vm.success = null
+                  vm.error = error.response.data.message
+                  vm.txLoading = false
+                })
+            }
+          })
+        },
+        // 挖矿
+        onMine: function () {
+          const vm = this
+          if (!this.wallet) {
+            this.success = null
+            this.error = 'Please Load Wallet first'
+            return
+          }
+          axios.post('/mine')
+            .then(function (response) {
+              vm.error = null
+              vm.success = response.data.message
+              vm.balance = response.data.funds
+              console.log(response.data)
+            })
+            .catch(function (error) {
+              vm.success = null
+              vm.error = error.response.data.message
+            })
+        }
+      }
+    })
+  </script>
+</body>
+</html>

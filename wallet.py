@@ -20,11 +20,13 @@ class Wallet:
         if self.public_key != None and self.private_key != None:
             try:
                 with open('wallet.txt', mode='w') as f:
-                    f.write(str(self.public_key))
+                    f.write(self.public_key)
                     f.write('\n')
-                    f.write(str(self.private_key))
+                    f.write(self.private_key)
+                return True
             except (IOError, IndexError):
                 print('Saving wallet failed...')
+                return False
 
     # 从本地文件加载公私钥
     def load_keys(self):
@@ -35,8 +37,10 @@ class Wallet:
                 private_key = keys[1]
                 self.public_key = public_key
                 self.private_key = private_key
+            return True
         except (IOError, IndexError):
             print('Loading wallet failed...')
+            return False
 
     # 用RSA生成并返回公私钥对
     def generate_keys(self):
