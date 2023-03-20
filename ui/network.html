@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>COMP7200 Blockchain</title>
+  <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+  <!-- <link rel="stylesheet" href="/ui/css/element.css"> -->
+  <link rel="stylesheet" href="/ui/css/network.css">
+</head>
+<body>
+  <el-container class="app" id="app">
+    <el-header class="header">COMP7200 Blockchian - Manage nodes</el-header>
+    <div class="content">
+      <el-alert
+        class="el-alert"
+        :closable="false"
+        type="error"
+        :title="error"
+        v-if="error"></el-alert>
+      
+        <el-alert
+          class="el-alert"
+          :closable="false"
+          type="success"
+          :title="success"
+          v-if="success"></el-alert>
+
+        <div v-if="error || success" style="height:10px"></div>
+        <el-divider class="divider"></el-divider>
+        <div class="add_node">
+          <el-form
+            :rules="rules"
+            ref="form"
+            :model="form"
+            :inline="true">
+            <el-form-item label="Node URL" prop="url">
+              <el-input v-model="form.url" placeholder="http://localhost:5001"></el-input>
+            </el-form-item>
+            <el-form-item>
+              <el-button @click="onAddNode('form')" type="primary">Add</el-button>
+            </el-form-item>
+          </el-form>
+        </div>
+        <!-- <el-divider class="divider"></el-divider> -->
+
+        <el-button type="primary" @click="onLoadNodes">Load Nodes</el-button>
+        
+        <div
+          class="node"
+          :key="idx + 'node'"
+          @click="onRmoveNode(node)"
+          v-for="(node, idx) in peerNodes">
+          {{node}} (click to delete)
+        </div>
+    </div>
+  </el-container>
+  <script src="/ui/js/vue.js"></script>
+  <script src="/ui/js/elementui.js"></script>
+  <script src="/ui/js/axios.js"></script>
+  <script>
+    new Vue({
+      el: '#app',
+      data: {
+        success: null,
+        error: null,
+        node: null,
+        // peerNodes: ['localhost:5000'],
+        peerNodes: [],
+        rules: {
+          url: [ { required: true, message: 'Please input Node URL' } ]
+        },
+        form: {
+          url: null
+        }
+      },
+      methods: {
+        onAddNode: function (formName) {
+          const vm = this
+          this.$refs[formName].validate((valid) => {
+            axios.post('/node', { node: vm.form.url })
+              .then((response) => {
+                vm.success = 'Stored node successfully'
+                vm.error = null
+                vm.peerNodes = response.data.all_nodes
+              })
+              .catch((error) => {
+                vm.success = null
+                vm.error = error.response.data.message
+              })
+          })
+        },
+        onRmoveNode: function(url) {
+          axios.delete('/node/' + url)
+            .then(response => {
+              this.success = 'Delete node successfully'
+              this.error = null
+              this.peerNodes = response.data.all_nodes
+            })
+            .catch(error => {
+              this.success = null
+              this.error = error.response.data.message
+            })
+        },
+        onLoadNodes: function() {
+          axios.get('/nodes')
+            .then(response => {
+              this.success = 'Fetched nodes successfully'
+              this.error = null
+              this.peerNodes = response.data.all_nodes
+            })
+            .catch(error => {
+              this.success = null
+              this.error = error.response.data.message
+            })
+        }
+      }
+    })
+  </script>
+</body>
+</html>

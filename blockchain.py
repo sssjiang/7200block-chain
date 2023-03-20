@@ -16,6 +16,7 @@ class Blockchain:
         genesis_block = Block(0, '', [], 100, 0) # 创世块
         self.chain = [genesis_block]  # 初始化 blockchain
         self.__open_transactions = []  # 交易池
+        self.__peer_nodes = set()
         self.load_data()
         self.hosting_node = hosting_node_id
 
@@ -67,12 +68,15 @@ class Blockchain:
                 # 因此其他地方，读取 chain 的时候，仍然使用 self.__chain
                 self.chain = updated_blockchain
 
-                open_transactions = json.loads(file_content[1])
+                open_transactions = json.loads(file_content[1][:-1]) # 加[:-1]是为了去掉结尾的 \n
                 updated_open_transactions = []
                 for tx in open_transactions:
                     updated_transaction = Transaction(tx['sender'], tx['recipient'], tx['signature'], tx['amount'])
                     updated_open_transactions.append(updated_transaction)
                 self.__open_transactions = updated_open_transactions
+                
+                peer_nodes = json.loads(file_content[2])
+                self.__peer_nodes = set(peer_nodes)
         except (IOError, IndexError): # 处理文件为空的问题
             print('Handled exception...')
         finally:
@@ -95,6 +99,8 @@ class Blockchain:
                 f.write(json.dumps(saveable_chain))
                 f.write('\n')
                 f.write(json.dumps(saveable_tx))
+                f.write('\n')
+                f.write(json.dumps(list(self.__peer_nodes)))
                 # save_data = {
                 #     'chain': blockchain,
                 #     'ot': open_transactions
@@ -193,5 +199,17 @@ class Blockchain:
         self.__open_transactions = []
         self.save_data()
         return block
+    
+    # 新增节点
+    def add_peer_node(self, node):
+        """Adds a new node to the peer node set"""
+        self.__peer_nodes.add(node)
+        self.save_data()
 
+    # 删除节点
+    def remove_peer_node(self, node):
+        self.__peer_nodes.discard(node)
+        self.save_data() 
 
+    def get_peer_nodes(self):
+        return list(self.__peer_nodes)

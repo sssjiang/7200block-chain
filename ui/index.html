@@ -5,8 +5,8 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
-  <!-- <link rel="stylesheet" href="/ui/element.css"> -->
-  <link rel="stylesheet" href="/ui/index.css">
+  <!-- <link rel="stylesheet" href="/ui/css/element.css"> -->
+  <link rel="stylesheet" href="/ui/css/index.css">
   <title>COMP7200 Blockchain</title>
 </head>
 <body>
@@ -26,6 +26,8 @@
         :closable="false"
         type="success"
         :title="success"></el-alert>
+      
+      <div v-if="error || success" style="height:10px"></div>
   
       <div class="wallet" v-loading="walletLoading">
         <el-row class="actions">
@@ -39,13 +41,17 @@
 
       <!-- 新增交易 -->
       <div class="add_transaction" v-if="txOpitons" v-loading="txLoading"> 
-        <el-form :rules="rules" ref="outgoingTx" :model="outgoingTx">
+        <el-form
+          :inline="true"
+          :rules="rules"
+          ref="outgoingTx"
+          :model="outgoingTx">
           <el-form-item label="Recipient Key" prop="recipient">
             <el-input placeholder="Enter key" v-model="outgoingTx.recipient"></el-input>
           </el-form-item>
           <el-form-item label="Amount of Coins" prop="amount">
             <el-input type="number" :min="0" placeholder="Enter amount" v-model="outgoingTx.amount"></el-input>
-            <div style="color:#767c83">Fractions are possible (e.g. 5.67)</div>
+            <!-- <div style="color:#767c83">e.g. 5.67</div> -->
           </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="onSendTx('outgoingTx')">Send</el-button>
@@ -54,12 +60,13 @@
       </div>
 
       <el-alert
+        v-if="!wallet"
         class="el-alert"
         :closable="false"
         type="success"
         title="Create a Wallet to start your coin trip !"></el-alert>
       
-      <el-divider class="divider"></el-divider>
+      <!-- <el-divider class="divider"></el-divider> -->
       
       <el-tabs type="border-card" v-model="view" @tab-click="tabClick">
         <el-tab-pane v-loading="dataLoading" label="Blockchain" name="chain">
@@ -105,10 +112,10 @@
       </el-tabs>
     </div>
   </el-container>
-  <script src="/ui/vue.js"></script>
-  <script src="/ui/elementui.js"></script>
-  <!-- <script src="/ui/axios.js"></script> -->
-  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <script src="/ui/js/vue.js"></script>
+  <script src="/ui/js/elementui.js"></script>
+  <script src="/ui/js/axios.js"></script>
+  <!-- <script src="https://unpkg.com/axios/dist/axios.min.js"></script> -->
   <script>
     new Vue({
       el: '#app',
@@ -212,7 +219,7 @@
               })
               .catch(function (error) {
                 vm.dataLoading = false
-                vm.error = 'Something went wrong.'
+                vm.error = 'Something went wrong'
               })
           } else {
             axios.get('/transactions')
@@ -222,7 +229,7 @@
               })
               .catch(function (error) {
                 vm.dataLoading = false
-                vm.error = 'Something went wrong.'
+                vm.error = 'Something went wrong'
               })
           }
         },

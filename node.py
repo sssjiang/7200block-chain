@@ -64,9 +64,16 @@ def get_balance():
         }
         return jsonify(response), 500
 
-@app.route('/', methods=['GET'])
+
+@app.route('/', methods=['GET'])  # 进入首页
 def get_ui():
     return send_from_directory('ui', 'index.html')
+
+
+@app.route('/network', methods=['GET'])
+def get_network_ui(): # 进入节点管理页
+    return send_from_directory('ui', 'network.html')
+
 
 # 新增交易
 @app.route('/transaction', methods=['POST'])
@@ -156,6 +163,55 @@ def get_chain():
         dict_block['transactions'] = [tx.__dict__ for tx in dict_block['transactions']]
 
     return jsonify(dict_chain), 200
+
+
+@app.route('/node', methods=['POST'])
+def add_node():
+    values = request.get_json() if request.data else None
+    if not values:
+        response = {
+            'message': 'No data received.'
+        }
+        return jsonify(response), 400
+    if 'node' not in values:
+        response = {
+            'message': 'No node data found.'
+        }
+        return jsonify(response), 400
+    node = values.get('node')
+    node = values['node']
+    blockchain.add_peer_node(node)
+    response = {
+        'message': 'Node added successfully.',
+        'all_nodes': blockchain.get_peer_nodes()
+    }
+    return jsonify(response), 201
+
+
+# 删除节点
+@app.route('/node/<node_url>', methods=['DELETE'])
+def remove_node(node_url):
+    if node_url == "" or node_url == None:
+        response = {
+            'message': 'No node found.'
+        }
+        return jsonify(response), 400
+    blockchain.remove_peer_node(node_url)
+    response = {
+        'message': 'Node removed',
+        'all_nodes': blockchain.get_peer_nodes()
+    }
+    return jsonify(response), 200
+
+
+# 获得节点列表
+@app.route('/nodes', methods=['GET'])
+def get_nodes():
+    nodes = blockchain.get_peer_nodes()
+    response = {
+        'all_nodes': nodes
+    }
+    return jsonify(response), 200
 
 
 if __name__ == '__main__':
