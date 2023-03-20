@@ -10,6 +10,9 @@ body {
 .app {
   padding-top: 20px;
 }
+.el-divider--horizontal {
+  margin: 18px 0;
+}
 .header {
   padding: 0 20px;
   font-size: 35px;
@@ -19,7 +22,6 @@ body {
   padding: 0 20px;
 }
 .wallet {
-  margin-top: 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
