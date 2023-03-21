@@ -1,4 +1,4 @@
 .vscode
 *.p
-blockchain.txt
-wallet.txt
+blockchain*.txt
+wallet*.txt

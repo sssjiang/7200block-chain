@@ -34,7 +34,7 @@ class Verification:
     @staticmethod
     def verify_transaction(transaction, get_balance, check_funds=True):
         if check_funds:
-            sender_balance = get_balance()
+            sender_balance = get_balance(transaction.sender)
             return sender_balance >= transaction.amount and Wallet.verify_transaction(transaction)  # 检验发送方的余额是否多于本次交易的金额
         else:
             return Wallet.verify_transaction(transaction)

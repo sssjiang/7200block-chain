@@ -33,6 +33,8 @@ body {
 .el-alert {
   padding-top: 18px;
   padding-bottom: 18px;
+  word-wrap: break-word;
+  word-break: break-all;
 }
 .el-alert__title {
   font-size: 15px;

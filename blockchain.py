@@ -1,5 +1,6 @@
 from functools import reduce
 import json
+import requests
 # import pickle
 
 from utility.hash_util import hash_block
@@ -12,13 +13,15 @@ MINING_REWARD = 10.0  # 挖矿奖励
 
 """在类中，双下划线 + 变量名 表示这个变量是 private 类型的, 如: __chain"""
 class Blockchain:
-    def __init__(self, hosting_node_id):
+    def __init__(self, publick_key, node_id):
         genesis_block = Block(0, '', [], 100, 0) # 创世块
         self.chain = [genesis_block]  # 初始化 blockchain
         self.__open_transactions = []  # 交易池
+        self.public_key = publick_key
         self.__peer_nodes = set()
+        self.node_id = node_id
+        self.resolve_conflicts = False
         self.load_data()
-        self.hosting_node = hosting_node_id
 
     """property装饰器用来创建*只读属性*, 会将方法转换为相同名称的*只读属性*, 可以与所定义的属性配合使用, 这样可以防止属性被修改"""    
     @property
@@ -42,7 +45,7 @@ class Blockchain:
             3. because using json to load data may occur some order problem
         """
         try:
-            with open('blockchain.txt', mode='r') as f:
+            with open('blockchain-{}.txt'.format(self.node_id), mode='r') as f:
                 file_content = f.readlines()
                 # file_content = pickle.loads(f.read())
 
@@ -88,7 +91,7 @@ class Blockchain:
             2. use pickle to dumps binary data
         """
         try:
-            with open('blockchain.txt', mode='w') as f:
+            with open('blockchain-{}.txt'.format(self.node_id), mode='w') as f:
                 # 因为 block 是 Block 类的对象，不可以直接使用 json.dumps 来转化为 String 类型
                 # 所以需要将 blockchian 列表里面的所有 block 对象转化为 dict，使用 block.__dict__
                 saveable_chain = [block.__dict__
@@ -120,11 +123,14 @@ class Blockchain:
         return proof
 
     # 计算用户的余额
-    def get_balance(self):
-        if self.hosting_node == None:
-            return None
+    def get_balance(self, sender=None):
+        if sender == None:
+            if self.public_key == None:
+                return None
 
-        participant = self.hosting_node
+            participant = self.public_key
+        else:
+            participant = sender
 
         # 获得过往交易中用户发送出去的所有金额记录
         tx_sender = [[tx.amount
@@ -153,34 +159,46 @@ class Blockchain:
         return self.__chain[-1]
 
     # 新增交易
-    def add_transaction(self, recipient, sender, signature, amount=1.0):
+    def add_transaction(self, recipient, sender, signature, amount=1.0, is_receiving=False):
         """
         Arguments:
             :sender: The sender of the coins.
             :recipient: The recipient of the coins.
             :amont: The amount of coins sent with the transaction (default=1.0)
         """
-        if self.hosting_node == None:
-            return
+        # if self.public_key == None:
+        #     return False
         transaction = Transaction(sender, recipient, signature, amount)
 
         if Verification.verify_transaction(transaction, self.get_balance):
             self.__open_transactions.append(transaction)
             self.save_data()
+            
+            if not is_receiving:
+                # 广播交易
+                for node in self.__peer_nodes:
+                    url = 'http://{}/broadcast-transaction'.format(node)
+                    try:
+                        response = requests.post(url, json={'sender': sender, 'recipient': recipient, 'amount': amount, 'signature': signature})
+                        if response.status_code == 400 or response.status_code == 500:
+                            print('Transaction declined, needs resolving')
+                            return False
+                    except requests.exceptions.ConnectionError:
+                        continue
             return True
         return False
 
     # 挖矿
     def mine_block(self):
         """Create a new block and add open transactions to it."""
-        if self.hosting_node == None:
+        if self.public_key == None:
             return None
 
         last_block = self.__chain[-1]
         hashed_block = hash_block(last_block)  # 计算上一个块的 hash 值
         proof = self.proof_of_work() # PoW只针对 open_transactions 里的交易，不包括系统奖励的交易
 
-        reward_transaction = Transaction('MINING', self.hosting_node, '', MINING_REWARD) # 系统奖励
+        reward_transaction = Transaction('MINING', self.public_key, '', MINING_REWARD) # 系统奖励
 
         copied_transactions = self.__open_transactions[:]  # 复制交易池记录（未加入奖励交易之前的）（深拷贝！）
         for tx in copied_transactions: # 验证签名
@@ -198,8 +216,77 @@ class Blockchain:
         self.__chain.append(block)
         self.__open_transactions = []
         self.save_data()
+
+        # 挖矿成功后进行广播
+        for node in self.__peer_nodes:
+            url = 'http://{}/broadcast-block'.format(node)
+            converted_block = block.__dict__.copy()
+            converted_block['transactions'] = [tx.__dict__ for tx in converted_block['transactions']]
+            try:
+                response = requests.post(url, json={'block': converted_block})
+                if response.status_code == 400 or response.status_code == 500:
+                    print('Block declined, needs resolving')
+                if response.status_code == 409:
+                    self.resolve_conflicts = True
+            except requests.exceptions.ConnectionError:
+                continue
+            
         return block
-    
+
+    # 收到其他节点的广播，进行加块处理
+    def add_block(self, block):
+        transactions = [Transaction(tx['sender'], tx['recipient'], tx['signature'], tx['amount']) for tx in block['transactions']]
+        proof_is_valid = Verification.valid_proof(transactions[:-1], block['previous_hash'], block['proof'])
+        hashes_match = hash_block(self.chain[-1]) == block['previous_hash']
+        if not proof_is_valid or not hashes_match:
+            return False
+        converted_block = Block(block['index'], block['previous_hash'], transactions, block['proof'], block['timestamp'])
+        self.__chain.append(converted_block)
+        stored_transactions = self.__open_transactions[:]
+
+        # 添加完广播回来的块之后，清理一下交易池里的记录
+        for itx in block['transactions']:
+            for opentx in stored_transactions:
+                if opentx.sender == itx['sender'] and opentx.recipient == itx['recipient'] and opentx.amount == itx['amount'] and opentx.signature == itx['signature']:
+                    try:
+                        self.__open_transactions.remove(opentx)
+                    except ValueError:
+                        print('Item was already removed')
+
+        self.save_data()
+        return True
+
+    # 解决冲突
+    def resolve (self):
+        winner_chain = self.chain
+        replace = False
+
+        for node in self.__peer_nodes:
+            url = 'http://{}/chain'.format(node)
+            try:
+                response = requests.get(url)
+                node_chain = response.json()
+                node_chain = [Block(block['index'],
+                                    block['previous_hash'],
+                                    [Transaction(tx['sender'], tx['recipient'], tx['signature'], tx['amount']) for tx in block['transactions']],
+                                    block['proof'],
+                                    block['timestamp']) for block in node_chain]
+                
+                node_chain_length = len(node_chain)
+                local_chain_length = len(winner_chain)
+                if node_chain_length > local_chain_length and Verification.verify_chain(node_chain):
+                    winner_chain = node_chain
+                    replace = True
+            except requests.exceptions.ConnectionError:
+                continue
+        self.resolve_conflicts = False
+        self.chain = winner_chain
+
+        if replace:
+            self.__open_transactions = []
+        self.save_data()
+        return replace
+
     # 新增节点
     def add_peer_node(self, node):
         """Adds a new node to the peer node set"""
@@ -211,5 +298,6 @@ class Blockchain:
         self.__peer_nodes.discard(node)
         self.save_data() 
 
+    # 获取所有节点
     def get_peer_nodes(self):
         return list(self.__peer_nodes)

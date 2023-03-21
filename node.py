@@ -4,10 +4,9 @@ from flask_cors import CORS
 from wallet import Wallet
 from blockchain import Blockchain
 
-app = Flask(__name__, template_folder='ui', static_folder='ui', static_url_path='/ui') # 随便传个名字进去都行
-app.config['JSON_AS_ASCII'] = False
-wallet = Wallet()
-blockchain = Blockchain(wallet.public_key)
+app = Flask(__name__, template_folder='ui', static_folder='ui', static_url_path='/ui')
+# wallet = Wallet()
+# blockchain = Blockchain(wallet.public_key)
 CORS(app)
 
 # 新增钱包（公私钥，余额）
@@ -16,7 +15,7 @@ def create_keys():
     wallet.create_keys()
     if wallet.save_keys():
         global blockchain
-        blockchain = Blockchain(wallet.public_key)
+        blockchain = Blockchain(wallet.public_key, port)
         response = {
             'public_key': wallet.public_key,
             'private_key': wallet.private_key,
@@ -34,7 +33,7 @@ def create_keys():
 def load_keys():
     if wallet.load_keys():
         global blockchain
-        blockchain = Blockchain(wallet.public_key)
+        blockchain = Blockchain(wallet.public_key, port)
         response = {
             'public_key': wallet.public_key,
             'private_key': wallet.private_key,
@@ -128,6 +127,10 @@ def add_transaction():
 # 挖矿
 @app.route('/mine', methods=['POST'])
 def mine():
+  if blockchain.resolve_conflicts:  # 当挖矿的时候发现区块链和其他节点的存在冲突
+      response = {'message': 'Resolve conflicts first, block not added!'}
+      return jsonify(response), 409
+
   block = blockchain.mine_block()
   if block != None:
       dict_block = block.__dict__.copy()
@@ -144,6 +147,82 @@ def mine():
           'wallet_set_up': wallet.public_key != None
       }
       return jsonify(response), 500
+  
+
+@app.route('/resolve-conflicts', methods=['POST'])
+def resolve_conflicts():
+    replaced = blockchain.resolve()
+    if replaced:
+        response = {'message': 'Chain was replaced!'}
+    else:
+        response = {'message', 'Local chain kept!'}
+    return jsonify(response), 200
+  
+
+@app.route('/broadcast-block', methods=['POST'])
+def broadcast_block():
+    values = request.get_json()
+    if not values:
+        response = {'message': 'No data found.'}
+        return jsonify(response), 400
+    if 'block' not in values:
+        response = {'message': 'Some data is missing.'}
+        return jsonify(response), 400
+    block = values['block']
+    if block['index'] == blockchain.chain[-1].index + 1:  # 如果广播来的区块的index等于最后一个区块的index+1
+        if blockchain.add_block(block):
+            response = {'message': 'Block added.'}
+            print('Block added.')
+            return jsonify(response), 201
+        else:
+            response = {'message': 'Block seems invalid.'}
+            print('Block seems invalid.')
+            return jsonify(response), 409
+    elif block['index'] > blockchain.chain[-1].index: # 如果广播来的区块长度大于当前区块长度
+        # print(block['index'], blockchain.chain[-1].index)
+        response = {'message': 'Blockchain seems to differ from local blockchain'}
+        print('Blockchain seems to differ from local blockchain')
+        blockchain.resolve_conflicts = True
+        return jsonify(response), 200
+    else:
+        response = {'message': 'Blockchain seems to be shorter, block not added'}
+        print('Blockchain seems to be shorter, block not added')
+        return jsonify(response), 409
+
+
+
+# 广播交易
+# 当其节点新增了交易地时候，就会调用这个接口
+# 比如，网络中有 5000 和 5001 两个节点
+# 5000 节点新增了交易，就会调用 5001 节点的 /broadcast-transaction 接口来让 5001 自动更新它本地的交易池
+@app.route('/broadcast-transaction', methods=['POST'])
+def broadcast_transaction():
+    values = request.get_json()
+    if not values:
+        response = {'message': 'No data found.'}
+        return jsonify(response), 400
+    required = ['sender', 'recipient', 'amount', 'signature']
+    if not all(key in values for key in required):
+        response = {'message': 'Some data is missing.'}
+        return jsonify(response), 400
+    success = blockchain.add_transaction(values['recipient'], values['sender'], values['signature'], values['amount'], is_receiving=True)
+    if success:
+        response = {
+            'message': 'Successfully added transaction.',
+            'transaction': {
+                'sender': wallet.public_key,
+                'recipient': values['recipient'],
+                'amount': values['amount'],
+                'signature': values['signature']
+            }
+        }
+        return jsonify(response), 201
+    else:
+        response = {
+            'message': 'Creating a transaction failed.'
+        }
+        return jsonify(response), 500
+
 
 # 获取交易池
 @app.route('/transactions', methods=['GET'])
@@ -152,6 +231,7 @@ def get_open_transaction():
     dict_transactions = [tx.__dict__ for tx in transactions]
     response = dict_transactions
     return jsonify(response), 200
+
 
 # 获取区块链信息
 @app.route('/chain', methods=['GET'])
@@ -215,4 +295,11 @@ def get_nodes():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    parser.add_argument('-p', '--port', type=int, default=5000)
+    args = parser.parse_args()
+    port = args.port
+    wallet = Wallet(port)
+    blockchain = Blockchain(wallet.public_key, port)
+    app.run(host='0.0.0.0', port=port)
