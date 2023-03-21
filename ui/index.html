@@ -16,14 +16,12 @@
       <el-alert
         v-if="error"
         class="el-alert"
-        :closable="false"
         type="error"
         :title="error"></el-alert>
 
       <el-alert
         v-if="success"
         class="el-alert"
-        :closable="false"
         type="success"
         :title="success"></el-alert>
       
@@ -73,7 +71,8 @@
           <div class="blockchain">
             <el-row>
               <el-button @click="onLoadData" type="primary">Load Blockchain</el-button>
-              <el-button @click="onMine" type="success">Mine BUCoins</el-button>
+              <el-button v-if="wallet" @click="onMine" type="success">Mine BUCoins</el-button>
+              <el-button @click="onResolve" type="warning">Resolve Conflicts</el-button>
             </el-row>
             <el-collapse v-model="activeBlockName">
               <div class="blocks" :key="block.index" v-for="block in blockchain">
@@ -167,7 +166,7 @@
             .then(function (response) {
               // console.info(response)
               vm.error = null
-              vm.success = 'Created Wallet! Public Key: ' + response.data.public_key + ', \n Private Key: ' + response.data.private_key
+              vm.success = 'Created Wallet! Public Key: ' + response.data.public_key + ' ------------- Private Key: ' + response.data.private_key
               vm.wallet = {
                 public_key: response.data.public_key,
                 private_key: response.data.private_key
@@ -190,7 +189,7 @@
           axios.get('/wallet')
             .then(function (response) {
               vm.error = null
-              vm.success = 'Loaded Wallet! Public Key: ' + response.data.public_key + ', \n Private Key: ' + response.data.private_key
+              vm.success = 'Loaded Wallet! Public Key: ' + response.data.public_key + ' ------------- Private Key: ' + response.data.private_key
               vm.wallet = {
                 public_key: response.data.public_key,
                 private_key: response.data.private_key
@@ -266,9 +265,11 @@
         // 挖矿
         onMine: function () {
           const vm = this
+          vm.dataLoading = true
           if (!this.wallet) {
             this.success = null
             this.error = 'Please Load Wallet first'
+            vm.dataLoading = false
             return
           }
           axios.post('/mine')
@@ -277,10 +278,30 @@
               vm.success = response.data.message
               vm.balance = response.data.funds
               console.log(response.data)
+              vm.dataLoading = false
+              vm.onLoadData()
             })
             .catch(function (error) {
               vm.success = null
               vm.error = error.response.data.message
+              vm.dataLoading = false
+            })
+        },
+        // 解决冲突
+        onResolve: function() {
+          const vm = this
+          vm.dataLoading = true
+          axios.post('/resolve-conflicts')
+            .then(response => {
+              vm.error = null
+              vm.success = response.data.message
+              vm.dataLoading = false
+              vm.onLoadData()
+            })
+            .catch(error => {
+              vm.success = null
+              vm.error = error.response.data.message
+              vm.dataLoading = false
             })
         }
       }
