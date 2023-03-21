@@ -158,8 +158,8 @@ class Blockchain:
             return None
         return self.__chain[-1]
 
-    # 新增交易
-    def add_transaction(self, recipient, sender, signature, amount=1.0, is_receiving=False):
+    # 新增自我交易
+    def add_self_transaction(self, recipient, sender, signature, amount=0, is_receiving=False):
         """
         Arguments:
             :sender: The sender of the coins.
@@ -170,6 +170,7 @@ class Blockchain:
         #     return False
         transaction = Transaction(sender, recipient, signature, amount)
 
+        
         if Verification.verify_transaction(transaction, self.get_balance):
             self.__open_transactions.append(transaction)
             self.save_data()
@@ -186,6 +187,60 @@ class Blockchain:
                     except requests.exceptions.ConnectionError:
                         continue
             return True
+        return False
+    
+    # 新增交易
+    def add_transaction(self, recipient, sender, signature, self_signature,  amount, self_amount, is_receiving=False):
+        """
+        Arguments:
+            :sender: The sender of the coins.
+            :recipient: The recipient of the coins.
+            :amont: The amount of coins sent with the transaction (default=1.0)
+        """
+        # if self.public_key == None:
+        #     return False
+        flag = 0
+
+        transaction = Transaction(sender, recipient, signature, amount)
+        
+        if Verification.verify_transaction(transaction, self.get_balance):
+            self.__open_transactions.append(transaction)
+            self.save_data()
+            
+            if not is_receiving:
+                # 广播交易
+                for node in self.__peer_nodes:
+                    url = 'http://{}/broadcast-transaction'.format(node)
+                    try:
+                        response = requests.post(url, json={'sender': sender, 'recipient': recipient, 'amount': amount, 'signature': signature})
+                        if response.status_code == 400 or response.status_code == 500:
+                            print('Transaction declined, needs resolving')
+                            return False
+                    except requests.exceptions.ConnectionError:
+                        continue
+            flag = 1
+        
+        self_transaction = Transaction(sender, sender, self_signature, self_amount)
+        recipient = sender
+        signature =self_signature
+        amount = self_amount
+        if Verification.verify_transaction(self_transaction, self.get_balance):
+            self.__open_transactions.append(self_transaction)
+            self.save_data()
+            
+            if not is_receiving:
+                # 广播交易
+                for node in self.__peer_nodes:
+                    url = 'http://{}/broadcast-transaction'.format(node)
+                    try:
+                        response = requests.post(url, json={'sender': sender, 'recipient': recipient, 'amount': amount, 'signature': signature})
+                        if response.status_code == 400 or response.status_code == 500:
+                            print('Transaction declined, needs resolving')
+                            return False
+                    except requests.exceptions.ConnectionError:
+                        continue 
+            if flag == 1:
+                return True
         return False
 
     # 挖矿
