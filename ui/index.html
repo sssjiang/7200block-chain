@@ -279,7 +279,7 @@
               vm.balance = response.data.funds
               console.log(response.data)
               vm.dataLoading = false
-              vm.onLoadData()
+              // vm.onLoadData()
             })
             .catch(function (error) {
               vm.success = null
@@ -296,7 +296,7 @@
               vm.error = null
               vm.success = response.data.message
               vm.dataLoading = false
-              vm.onLoadData()
+              // vm.onLoadData()
             })
             .catch(error => {
               vm.success = null
