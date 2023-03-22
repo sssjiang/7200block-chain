@@ -9,7 +9,7 @@ from block import Block
 from transaction import Transaction
 from wallet import Wallet
 
-MINING_REWARD = 10.0  # 挖矿奖励
+MINING_REWARD = 50.0  # 挖矿奖励
 
 """在类中，双下划线 + 变量名 表示这个变量是 private 类型的, 如: __chain"""
 class Blockchain:
@@ -116,11 +116,11 @@ class Blockchain:
     def proof_of_work(self):
         last_block = self.__chain[-1]
         last_hash = hash_block(last_block)
-        proof = 0
+        nonce = 0
 
-        while not Verification.valid_proof(self.__open_transactions, last_hash, proof):
-            proof +=1
-        return proof
+        while not Verification.valid_proof(self.__open_transactions, last_hash, nonce):
+            nonce += 1
+        return nonce
 
     # 计算用户的余额
     def get_balance(self, sender=None):
