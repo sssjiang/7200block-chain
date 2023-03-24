@@ -61,7 +61,7 @@ class Blockchain:
                         block['index'],
                         block['previous_hash'],
                         converted_tx,
-                        block['proof'],
+                        block['nonce'],
                         block['timestamp']
                     )
                     updated_blockchain.append(updated_block)
@@ -95,7 +95,7 @@ class Blockchain:
                 # 因为 block 是 Block 类的对象，不可以直接使用 json.dumps 来转化为 String 类型
                 # 所以需要将 blockchian 列表里面的所有 block 对象转化为 dict，使用 block.__dict__
                 saveable_chain = [block.__dict__
-                                for block in [Block(block_el.index, block_el.previous_hash, [tx.__dict__ for tx in block_el.transactions], block_el.proof, block_el.timestamp)
+                                for block in [Block(block_el.index, block_el.previous_hash, [tx.__dict__ for tx in block_el.transactions], block_el.nonce, block_el.timestamp)
                                                 for block_el in self.__chain]]
                 saveable_tx = [tx.__dict__ for tx in self.__open_transactions]
 
@@ -118,7 +118,11 @@ class Blockchain:
         last_hash = hash_block(last_block)
         nonce = 0
 
-        while not Verification.valid_proof(self.__open_transactions, last_hash, nonce):
+        while not Verification.valid_proof(index=self.chain[-1].timestamp,
+                                           last_hash=last_hash,
+                                           timestamp=self.chain[-1].timestamp,
+                                           transactions=self.__open_transactions,
+                                           nonce=nonce):
             nonce += 1
         return nonce
 
@@ -196,7 +200,7 @@ class Blockchain:
 
         last_block = self.__chain[-1]
         hashed_block = hash_block(last_block)  # 计算上一个块的 hash 值
-        proof = self.proof_of_work() # PoW只针对 open_transactions 里的交易，不包括系统奖励的交易
+        nonce = self.proof_of_work() # PoW只针对 open_transactions 里的交易，不包括系统奖励的交易
 
         reward_transaction = Transaction('MINING', self.public_key, '', MINING_REWARD) # 系统奖励
 
@@ -209,7 +213,7 @@ class Blockchain:
         block = Block(  # 创建新块
             len(self.__chain),
             hashed_block,
-            copied_transactions, proof
+            copied_transactions, nonce
         )
 
         # 加入新块
@@ -236,11 +240,15 @@ class Blockchain:
     # 收到其他节点的广播，进行加块处理
     def add_block(self, block):
         transactions = [Transaction(tx['sender'], tx['recipient'], tx['signature'], tx['amount']) for tx in block['transactions']]
-        proof_is_valid = Verification.valid_proof(transactions[:-1], block['previous_hash'], block['proof'])
+        proof_is_valid = Verification.valid_proof(index=block['index'],
+                                                  last_hash=block['previous_hash'],
+                                                  timestamp=block['timestamp'],
+                                                  transactions=transactions[:-1],
+                                                  nonce=block['nonce'])
         hashes_match = hash_block(self.chain[-1]) == block['previous_hash']
         if not proof_is_valid or not hashes_match:
             return False
-        converted_block = Block(block['index'], block['previous_hash'], transactions, block['proof'], block['timestamp'])
+        converted_block = Block(block['index'], block['previous_hash'], transactions, block['nonce'], block['timestamp'])
         self.__chain.append(converted_block)
         stored_transactions = self.__open_transactions[:]
 
@@ -269,7 +277,7 @@ class Blockchain:
                 node_chain = [Block(block['index'],
                                     block['previous_hash'],
                                     [Transaction(tx['sender'], tx['recipient'], tx['signature'], tx['amount']) for tx in block['transactions']],
-                                    block['proof'],
+                                    block['nonce'],
                                     block['timestamp']) for block in node_chain]
                 
                 node_chain_length = len(node_chain)
