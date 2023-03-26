@@ -4,15 +4,17 @@ from wallet import Wallet
 class Verification:
     # 工作量证明 Proof-of-work
     # SHA256(交易记录 + 上一个块的hash值 + 随机数)
+
     @staticmethod
-    def valid_proof(transactions, last_hash, proof):
+    def valid_proof(index, last_hash, timestamp, transactions, nonce):
         # 因为 transactions 里面放的都是 tx 对象
         # Transaction 类里面定义了 to_ordered_dict 方法
         # 调用对象的方法 to_ordered_dict() 转换为 OrderedDict
-        guess = (str([tx.to_ordered_dict() for tx in transactions]) + str(last_hash) + str(proof)).encode()
+        guess = f"{index}{last_hash}{timestamp}{[tx.to_ordered_dict() for tx in transactions]}{nonce}".encode()
         guess_hash = hash_string_256(guess)
         # print(guess_hash)
-        return guess_hash[0:2] == '00'
+
+        return guess_hash[0:2] == "00"
 
     # 验证区块中的 hash 值
     @classmethod
@@ -25,7 +27,11 @@ class Verification:
                 return False
 
             # block['transactions'][1:] 这样写是因为我把系统奖励的交易放在了第0个，要排除掉系统奖励的交易，因此从下标1开始
-            if not cls.valid_proof(block.transactions[:-1], block.previous_hash, block.proof):
+            if not cls.valid_proof(index=block.index,
+                                   last_hash=block.previous_hash,
+                                   timestamp=block.timestamp,
+                                   transactions=block.transactions[:-1],
+                                   nonce=block.nonce):
                 print('Proof of work is invalid')
                 return False
         return True
