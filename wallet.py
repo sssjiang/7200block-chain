@@ -1,5 +1,5 @@
-from Crypto.PublicKey import RSA  # pycrypto 包
-from Crypto.Signature import PKCS1_v1_5
+from Crypto.PublicKey import ECC  # pycrypto 包
+from Crypto.Signature import DSS
 from Crypto.Hash import SHA256
 import Crypto.Random
 import binascii
@@ -43,15 +43,15 @@ class Wallet:
             print('Loading wallet failed...')
             return False
 
-    # 用RSA生成并返回公私钥对
+    # 用ECC生成并返回公私钥对
     def generate_keys(self):
-        private_key = RSA.generate(1024, Crypto.Random.new().read)
-        public_key = private_key.publickey()
-        return binascii.hexlify(private_key.exportKey(format='DER')).decode('ascii'), binascii.hexlify(public_key.exportKey(format='DER')).decode('ascii')
+        private_key = ECC.generate(curve='P-256')
+        public_key = private_key.public_key()
+        return binascii.hexlify(private_key.export_key(format='DER')).decode('ascii'), binascii.hexlify(public_key.export_key(format='DER')).decode('ascii')
     
     # 生成签名
     def sign_transaction(self, sender, recipient, amount):
-        signer = PKCS1_v1_5.new(RSA.importKey(binascii.unhexlify(self.private_key)))
+        signer = DSS.new(ECC.import_key(binascii.unhexlify(self.private_key)), 'fips-186-3')
         h = SHA256.new((str(sender) + str(recipient) + str(amount)).encode('utf8'))
         signature = signer.sign(h) # 生成出来的签名的二进制的
         return binascii.hexlify(signature).decode('ascii') # 用 hexlify 转成十六进制，使用 ascii 编码
@@ -61,7 +61,7 @@ class Wallet:
     def verify_transaction(transaction):
         # if transaction.sender == 'MINING':
         #     return True
-        public_key = RSA.importKey(binascii.unhexlify(transaction.sender))
-        verifier = PKCS1_v1_5.new(public_key)
+        public_key = ECC.import_key(binascii.unhexlify(transaction.sender))
+        verifier = DSS.new(public_key, 'fips-186-3')
         h = SHA256.new((str(transaction.sender) + str(transaction.recipient) + str(transaction.amount)).encode('utf8'))
         return verifier.verify(h, binascii.unhexlify(transaction.signature))
