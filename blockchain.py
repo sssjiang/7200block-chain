@@ -118,7 +118,7 @@ class Blockchain:
         last_hash = hash_block(last_block)
         nonce = 0
 
-        while not Verification.valid_proof(index=self.chain[-1].timestamp,
+        while not Verification.valid_proof(index=self.chain[-1].index,
                                            last_hash=last_hash,
                                            timestamp=self.chain[-1].timestamp,
                                            transactions=self.__open_transactions,
