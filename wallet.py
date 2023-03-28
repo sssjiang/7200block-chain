@@ -1,8 +1,6 @@
-from Crypto.PublicKey import ECC  # pycrypto 包
-from Crypto.Signature import DSS
-from Crypto.Hash import SHA256
-import Crypto.Random
+from ecdsa import SigningKey, VerifyingKey, SECP256k1
 import binascii
+import transaction
 
 class Wallet:
     def __init__(self, node_id):
@@ -45,23 +43,38 @@ class Wallet:
 
     # 用ECC生成并返回公私钥对
     def generate_keys(self):
-        private_key = ECC.generate(curve='P-256')
-        public_key = private_key.public_key()
-        return binascii.hexlify(private_key.export_key(format='DER')).decode('ascii'), binascii.hexlify(public_key.export_key(format='DER')).decode('ascii')
-    
-    # 生成签名
+        sk = SigningKey.generate(curve=SECP256k1)
+        vk = sk.get_verifying_key()
+        return (binascii.hexlify(sk.to_string()).decode('ascii'),
+                binascii.hexlify(vk.to_string()).decode('ascii'))
+    # 生成签名 签名的时候的 DER 编码转成 uncompressed 编码
     def sign_transaction(self, sender, recipient, amount):
-        signer = DSS.new(ECC.import_key(binascii.unhexlify(self.private_key)), 'fips-186-3')
-        h = SHA256.new((str(sender) + str(recipient) + str(amount)).encode('utf8'))
-        signature = signer.sign(h) # 生成出来的签名的二进制的
-        return binascii.hexlify(signature).decode('ascii') # 用 hexlify 转成十六进制，使用 ascii 编码
 
+        sk = SigningKey.from_string(binascii.unhexlify(self.private_key), curve=SECP256k1)
+        h = (str(sender) + str(recipient) + str(amount)).encode('utf8')
+        signature = sk.sign(h) # 生成出来的签名的二进制的
+        #signature的格式是DER编码的，需要转成uncompressed编码
+        return binascii.hexlify(signature).decode('ascii') 
     # 验证签名
     @staticmethod
     def verify_transaction(transaction):
-        # if transaction.sender == 'MINING':
-        #     return True
-        public_key = ECC.import_key(binascii.unhexlify(transaction.sender))
-        verifier = DSS.new(public_key, 'fips-186-3')
-        h = SHA256.new((str(transaction.sender) + str(transaction.recipient) + str(transaction.amount)).encode('utf8'))
-        return verifier.verify(h, binascii.unhexlify(transaction.signature))
+        vk = VerifyingKey.from_string(binascii.unhexlify(transaction.sender), curve=SECP256k1)
+        h = (str(transaction.sender) + str(transaction.recipient) + str(transaction.amount)).encode('utf8')
+        return vk.verify(binascii.unhexlify(transaction.signature), h)
+        #verify always return True or False
+        
+
+#test code
+if __name__ == '__main__':
+    wallet = Wallet(5001)
+    wallet.create_keys()
+    wallet.save_keys()
+    wallet.load_keys()
+    print("-----",wallet.public_key)
+    print(wallet.private_key)
+    #__init__(self, sender, recipient, signature, amount)
+    signature = wallet.sign_transaction(wallet.public_key, wallet.public_key, 10)
+    transaction1 = transaction.Transaction(wallet.public_key,wallet.public_key,signature,100)
+    print("signigngingi",signature)
+    print("transaction1transaction1",transaction1)
+    print(Wallet.verify_transaction(transaction1))
