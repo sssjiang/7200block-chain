@@ -155,7 +155,7 @@ def resolve_conflicts():
     if replaced:
         response = {'message': 'Chain was replaced!'}
     else:
-        response = {'message', 'Local chain kept!'}
+        response = {'message': 'Local chain kept!'}
     return jsonify(response), 200
   
 

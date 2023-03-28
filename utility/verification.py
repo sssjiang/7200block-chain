@@ -12,7 +12,6 @@ class Verification:
         # 调用对象的方法 to_ordered_dict() 转换为 OrderedDict
         guess = f"{index}{last_hash}{timestamp}{[tx.to_ordered_dict() for tx in transactions]}{nonce}".encode()
         guess_hash = hash_string_256(guess)
-        # print(guess_hash)
 
         return guess_hash[0:2] == "00"
 
