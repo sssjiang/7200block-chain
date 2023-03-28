@@ -74,7 +74,7 @@ if __name__ == '__main__':
     print(wallet.private_key)
     #__init__(self, sender, recipient, signature, amount)
     signature = wallet.sign_transaction(wallet.public_key, wallet.public_key, 10)
-    transaction1 = transaction.Transaction(wallet.public_key,wallet.public_key,signature,100)
+    transaction1 = transaction.Transaction(wallet.public_key,wallet.public_key,signature,10)
     print("signigngingi",signature)
     print("transaction1transaction1",transaction1)
     print(Wallet.verify_transaction(transaction1))
