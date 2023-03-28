@@ -1,6 +1,7 @@
 from functools import reduce
 import json
 import requests
+from time import time
 # import pickle
 
 from utility.hash_util import hash_block
@@ -113,14 +114,14 @@ class Blockchain:
             print('Saving failed!')
 
     # 工作量证明 Proof-of-work
-    def proof_of_work(self):
+    def proof_of_work(self, timestamp):
         last_block = self.__chain[-1]
         last_hash = hash_block(last_block)
         nonce = 0
 
-        while not Verification.valid_proof(index=self.chain[-1].index,
+        while not Verification.valid_proof(index=self.chain[-1].index + 1,
                                            last_hash=last_hash,
-                                           timestamp=self.chain[-1].timestamp,
+                                           timestamp=timestamp,
                                            transactions=self.__open_transactions,
                                            nonce=nonce):
             nonce += 1
@@ -173,7 +174,6 @@ class Blockchain:
         # if self.public_key == None:
         #     return False
         transaction = Transaction(sender, recipient, signature, amount)
-
         if Verification.verify_transaction(transaction, self.get_balance):
             self.__open_transactions.append(transaction)
             self.save_data()
@@ -200,7 +200,8 @@ class Blockchain:
 
         last_block = self.__chain[-1]
         hashed_block = hash_block(last_block)  # 计算上一个块的 hash 值
-        nonce = self.proof_of_work() # PoW只针对 open_transactions 里的交易，不包括系统奖励的交易
+        timestamp = time()
+        nonce = self.proof_of_work(timestamp) # PoW只针对 open_transactions 里的交易，不包括系统奖励的交易
 
         reward_transaction = Transaction('MINING', self.public_key, '', MINING_REWARD) # 系统奖励
 
@@ -213,7 +214,9 @@ class Blockchain:
         block = Block(  # 创建新块
             len(self.__chain),
             hashed_block,
-            copied_transactions, nonce
+            copied_transactions,
+            nonce,
+            timestamp
         )
 
         # 加入新块
@@ -240,12 +243,14 @@ class Blockchain:
     # 收到其他节点的广播，进行加块处理
     def add_block(self, block):
         transactions = [Transaction(tx['sender'], tx['recipient'], tx['signature'], tx['amount']) for tx in block['transactions']]
+        # print(block, 'bbbbbbbbbb')
         proof_is_valid = Verification.valid_proof(index=block['index'],
                                                   last_hash=block['previous_hash'],
                                                   timestamp=block['timestamp'],
                                                   transactions=transactions[:-1],
                                                   nonce=block['nonce'])
         hashes_match = hash_block(self.chain[-1]) == block['previous_hash']
+        # print(proof_is_valid, hashes_match)
         if not proof_is_valid or not hashes_match:
             return False
         converted_block = Block(block['index'], block['previous_hash'], transactions, block['nonce'], block['timestamp'])

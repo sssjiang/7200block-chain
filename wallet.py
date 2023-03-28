@@ -1,7 +1,7 @@
 from Crypto.PublicKey import ECC  # pycrypto 包
 from Crypto.Signature import DSS
 from Crypto.Hash import SHA256
-import Crypto.Random
+# import Crypto.Random
 import binascii
 
 class Wallet:
