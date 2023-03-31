@@ -3,7 +3,7 @@ import json
 import requests
 from time import time
 # import pickle
-
+from time import sleep
 from utility.hash_util import hash_block
 from utility.verification import Verification
 from block import Block
@@ -11,11 +11,12 @@ from transaction import Transaction
 from wallet import Wallet
 
 MINING_REWARD = 50.0  # 挖矿奖励
+ 
 
 """在类中，双下划线 + 变量名 表示这个变量是 private 类型的, 如: __chain"""
 class Blockchain:
     def __init__(self, publick_key, node_id):
-        genesis_block = Block(0, '', [], 100, 0) # 创世块
+        genesis_block = Block(index=0, previous_hash='', transactions=[],difficulty=2,nonce=100)
         self.chain = [genesis_block]  # 初始化 blockchain
         self.__open_transactions = []  # 交易池
         self.public_key = publick_key
@@ -59,11 +60,12 @@ class Blockchain:
                 for block in blockchain:
                     converted_tx = [Transaction(tx['sender'], tx['recipient'], tx['signature'], tx['amount']) for tx in block['transactions']]
                     updated_block = Block(
-                        block['index'],
-                        block['previous_hash'],
-                        converted_tx,
-                        block['nonce'],
-                        block['timestamp']
+                        index=block['index'],
+                        previous_hash=block['previous_hash'],
+                        transactions=converted_tx,
+                        nonce=block['nonce'],
+                        time=block['timestamp'],
+                        difficulty=block['difficulty']
                     )
                     updated_blockchain.append(updated_block)
                 
@@ -96,7 +98,7 @@ class Blockchain:
                 # 因为 block 是 Block 类的对象，不可以直接使用 json.dumps 来转化为 String 类型
                 # 所以需要将 blockchian 列表里面的所有 block 对象转化为 dict，使用 block.__dict__
                 saveable_chain = [block.__dict__
-                                for block in [Block(block_el.index, block_el.previous_hash, [tx.__dict__ for tx in block_el.transactions], block_el.nonce, block_el.timestamp)
+                                for block in [Block(index=block_el.index, previous_hash=block_el.previous_hash, transactions=[tx.__dict__ for tx in block_el.transactions], nonce=block_el.nonce, time=block_el.timestamp, difficulty=block_el.difficulty)
                                                 for block_el in self.__chain]]
                 saveable_tx = [tx.__dict__ for tx in self.__open_transactions]
 
@@ -114,7 +116,8 @@ class Blockchain:
             print('Saving failed!')
 
     # 工作量证明 Proof-of-work
-    def proof_of_work(self, timestamp):
+    def proof_of_work(self,difficulty,timestamp):
+        difficulty = difficulty
         last_block = self.__chain[-1]
         last_hash = hash_block(last_block)
         nonce = 0
@@ -123,7 +126,8 @@ class Blockchain:
                                            last_hash=last_hash,
                                            timestamp=timestamp,
                                            transactions=self.__open_transactions,
-                                           nonce=nonce):
+                                           nonce=nonce,
+                                           difficulty=difficulty):
             nonce += 1
         return nonce
 
@@ -193,6 +197,26 @@ class Blockchain:
         return False
 
     # 挖矿
+
+    def adjust_difficulty(self,last_block):
+        # 挖矿难度系数
+        starttime=time()
+        sleep(0.2)
+        endtime=time()
+        MINE_RATE =(endtime-starttime)*10  # 每 2 秒挖一个区块 
+        #MINE_RATE = 10 # seconds
+        #根据历史区块的时间戳和当前时间戳计算出来的时间差（历史区块最多为5个）
+        total_time=last_block.timestamp-self.__chain[-5].timestamp
+        #如果时间差的平均值小于MINE_RATE，说明挖矿速度过快，难度增加
+        ave=total_time/5
+        result=int(last_block.difficulty*MINE_RATE/ave)
+        #如果难度小于1，就返回1
+        if result < 1:
+            result=1
+        elif result > 5:
+            result=5
+        return result
+    
     def mine_block(self):
         """Create a new block and add open transactions to it."""
         if self.public_key == None:
@@ -201,7 +225,13 @@ class Blockchain:
         last_block = self.__chain[-1]
         hashed_block = hash_block(last_block)  # 计算上一个块的 hash 值
         timestamp = time()
-        nonce = self.proof_of_work(timestamp) # PoW只针对 open_transactions 里的交易，不包括系统奖励的交易
+        #每五个块调节一次diffculty
+        if len(self.__chain) % 5 == 0:
+            difficulty = self.adjust_difficulty(last_block)
+        else:
+            difficulty = last_block.difficulty
+        print(difficulty,'difficulty')
+        nonce = self.proof_of_work(difficulty,timestamp) # PoW只针对 open_transactions 里的交易，不包括系统奖励的交易
 
         reward_transaction = Transaction('MINING', self.public_key, '', MINING_REWARD) # 系统奖励
 
@@ -212,11 +242,12 @@ class Blockchain:
         
         copied_transactions.append(reward_transaction) # 将系统奖励的coins加进去
         block = Block(  # 创建新块
-            len(self.__chain),
-            hashed_block,
-            copied_transactions,
-            nonce,
-            timestamp
+            index=len(self.__chain),
+            previous_hash=hashed_block,
+            transactions=copied_transactions,
+            nonce=nonce,
+            time=timestamp,
+            difficulty=difficulty
         )
 
         # 加入新块
@@ -253,7 +284,7 @@ class Blockchain:
         # print(proof_is_valid, hashes_match)
         if not proof_is_valid or not hashes_match:
             return False
-        converted_block = Block(block['index'], block['previous_hash'], transactions, block['nonce'], block['timestamp'])
+        converted_block = Block(index=block['index'], previous_hash=block['previous_hash'], transactions=transactions, nonce=block['nonce'], time=block['timestamp'], difficulty=block['difficulty'])
         self.__chain.append(converted_block)
         stored_transactions = self.__open_transactions[:]
 
@@ -279,11 +310,13 @@ class Blockchain:
             try:
                 response = requests.get(url)
                 node_chain = response.json()
-                node_chain = [Block(block['index'],
-                                    block['previous_hash'],
-                                    [Transaction(tx['sender'], tx['recipient'], tx['signature'], tx['amount']) for tx in block['transactions']],
-                                    block['nonce'],
-                                    block['timestamp']) for block in node_chain]
+                node_chain = [Block(index=block['index'],
+                                    previous_hash=block['previous_hash'],
+                                    transactions=[Transaction(tx['sender'], tx['recipient'], tx['signature'], tx['amount']) for tx in block['transactions']],
+                                    nonce=block['nonce'],
+                                    time=block['timestamp'],
+                                    difficulty=block['difficulty']
+                                    ) for block in node_chain]
                 
                 node_chain_length = len(node_chain)
                 local_chain_length = len(winner_chain)
