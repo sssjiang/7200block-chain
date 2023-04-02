@@ -29,7 +29,8 @@ class Verification:
                                    last_hash=block.previous_hash,
                                    timestamp=block.timestamp,
                                    transactions=block.transactions[:-1],
-                                   nonce=block.nonce):
+                                   nonce=block.nonce,
+                                   difficulty=block.difficulty):
                 print('Proof of work is invalid')
                 return False
         return True
