@@ -9,11 +9,13 @@ from utility.verification import Verification
 from block import Block
 from transaction import Transaction
 from wallet import Wallet
+from merkletools import MerkleTools
 
 MINING_REWARD = 50.0  # 挖矿奖励
  
 
-"""在类中，双下划线 + 变量名 表示这个变量是 private 类型的, 如: __chain"""
+"""在类中，双下划线 + 变量名 表示这个变量是 private 类型的, 如: __chain"""    
+
 class Blockchain:
     def __init__(self, publick_key, node_id):
         genesis_block = Block(index=0, previous_hash='', transactions=[],difficulty=2,nonce=100)
@@ -65,7 +67,8 @@ class Blockchain:
                         transactions=converted_tx,
                         nonce=block['nonce'],
                         time=block['timestamp'],
-                        difficulty=block['difficulty']
+                        difficulty=block['difficulty'],
+                        merkle_root=block['merkle_root']
                     )
                     updated_blockchain.append(updated_block)
                 
@@ -98,7 +101,7 @@ class Blockchain:
                 # 因为 block 是 Block 类的对象，不可以直接使用 json.dumps 来转化为 String 类型
                 # 所以需要将 blockchian 列表里面的所有 block 对象转化为 dict，使用 block.__dict__
                 saveable_chain = [block.__dict__
-                                for block in [Block(index=block_el.index, previous_hash=block_el.previous_hash, transactions=[tx.__dict__ for tx in block_el.transactions], nonce=block_el.nonce, time=block_el.timestamp, difficulty=block_el.difficulty)
+                                for block in [Block(index=block_el.index, previous_hash=block_el.previous_hash, transactions=[tx.__dict__ for tx in block_el.transactions], nonce=block_el.nonce, time=block_el.timestamp, difficulty=block_el.difficulty, merkle_root=block_el.merkle_root)
                                                 for block_el in self.__chain]]
                 saveable_tx = [tx.__dict__ for tx in self.__open_transactions]
 
@@ -216,7 +219,18 @@ class Blockchain:
         elif result > 5:
             result=5
         return result
-    
+    def merkle_root(self,copied_transactions):
+        #计算merkle_root
+        txs = [tx.to_ordered_dict() for tx in copied_transactions]
+         # Convert transactions to bytes strings
+        txs_encoded = [json.dumps(tx).encode() for tx in txs]
+         # Decode bytes strings to regular strings
+        txs_decoded = [tx.decode() for tx in txs_encoded]
+        tree = MerkleTools(hash_type='sha256')
+        tree.add_leaf(txs_decoded, True)
+        tree.make_tree()
+        return tree.get_merkle_root()
+
     def mine_block(self):
         """Create a new block and add open transactions to it."""
         if self.public_key == None:
@@ -247,7 +261,8 @@ class Blockchain:
             transactions=copied_transactions,
             nonce=nonce,
             time=timestamp,
-            difficulty=difficulty
+            difficulty=difficulty,
+            merkle_root=self.merkle_root(copied_transactions)
         )
 
         # 加入新块
@@ -279,12 +294,13 @@ class Blockchain:
                                                   last_hash=block['previous_hash'],
                                                   timestamp=block['timestamp'],
                                                   transactions=transactions[:-1],
-                                                  nonce=block['nonce'])
+                                                  nonce=block['nonce'],
+                                                  difficulty=block['difficulty'])
         hashes_match = hash_block(self.chain[-1]) == block['previous_hash']
         # print(proof_is_valid, hashes_match)
         if not proof_is_valid or not hashes_match:
             return False
-        converted_block = Block(index=block['index'], previous_hash=block['previous_hash'], transactions=transactions, nonce=block['nonce'], time=block['timestamp'], difficulty=block['difficulty'])
+        converted_block = Block(index=block['index'], previous_hash=block['previous_hash'], transactions=transactions, nonce=block['nonce'], time=block['timestamp'], difficulty=block['difficulty'], merkle_root=block['merkle_root'])
         self.__chain.append(converted_block)
         stored_transactions = self.__open_transactions[:]
 
@@ -315,7 +331,8 @@ class Blockchain:
                                     transactions=[Transaction(tx['sender'], tx['recipient'], tx['signature'], tx['amount']) for tx in block['transactions']],
                                     nonce=block['nonce'],
                                     time=block['timestamp'],
-                                    difficulty=block['difficulty']
+                                    difficulty=block['difficulty'],
+                                    merkle_root=block['merkle_root']
                                     ) for block in node_chain]
                 
                 node_chain_length = len(node_chain)

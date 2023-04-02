@@ -4,3 +4,4 @@ flask-cors
 requests
 itsdangerous==2.0.1
 ecdsa
+MerkleTools
