@@ -6,14 +6,15 @@ class Verification:
     # SHA256(交易记录 + 上一个块的hash值 + 随机数)
 
     @staticmethod
-    def valid_proof(index, last_hash, timestamp, transactions,nonce,difficulty):
+    def valid_proof(index, last_hash, timestamp, transactions, nonce, difficulty):
         # 因为 transactions 里面放的都是 tx 对象
         # Transaction 类里面定义了 to_ordered_dict 方法
         # 调用对象的方法 to_ordered_dict() 转换为 OrderedDict
         difficulty=difficulty
-        guess = f"{index}{last_hash}{timestamp}{[tx.to_ordered_dict() for tx in transactions]}{nonce}".encode()
+        guess = f"{index}{last_hash}{timestamp}{[tx.to_ordered_dict() for tx in transactions]}{nonce}{difficulty}".encode()
         guess_hash = hash_string_256(guess)
         return guess_hash[0:difficulty] == '0' * difficulty
+
     # 验证区块中的 hash 值
     @classmethod
     def verify_chain(cls, blockchain):
